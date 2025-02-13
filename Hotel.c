@@ -1,268 +1,221 @@
 /*****************************************************************************
- *
- * 
- *
- * Author:	SPINOZA
-
- *
+ * Hotel Reservation System
+ * Author: SPINOZA (Improved Version)
  ****************************************************************************/
-#include<stdio.h>
-#include<stdlib.h>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 ///////////////////////////////////////////////////////////////////////////
-//  DEFINITION OF CONSTANTS
+//  CONSTANTS
 ///////////////////////////////////////////////////////////////////////////
+#define NFLOOR 6      // Number of floors
+#define NROOM 23      // Number of rooms per floor
+#define AVAILABLE -1  // Marks available rooms
 
-#define NFLOOR 6  		// Number of floors in the hotel
-#define NROOM 23   		// Number of rooms per floor
-#define AVAILABLE -1	// Constant to mark the rooms available (free)
-
-/////////////////////////////////////////////////////////////////////////////
-//   Datatype used to store the client data when they make a reservation   //
-/////////////////////////////////////////////////////////////////////////////
-typedef struct
-{
+///////////////////////////////////////////////////////////////////////////
+//  RESERVATION STRUCTURE
+///////////////////////////////////////////////////////////////////////////
+typedef struct {
     int DNI;
     char name[50];
     char surname[50];
-    int N_telephone[9];
-    int credit[16];
-    char arrival_date[20];
-    char departure_date[20];
-
-
+    char N_telephone[10];    // +34 123456789
+    char credit[17];         // 16 digits + null terminator
+    char arrival_date[11];   // DD/MM/YYYY
+    char departure_date[11]; // DD/MM/YYYY
 } Reservation;
 
-/////////////////////////////////////////////////////////////////////////////
-//
-//  Datatype that represents the hotel:
-// It is a matrix in which each row represents a floor and each column
-// represents a room.
-// The elements of the matrix are the data regarding each reservation (if it
-// exists).
-// If the room is not booked, the DNI field should have the value AVAILABLE
-//
-/////////////////////////////////////////////////////////////////////////////
 typedef Reservation Hotel[NFLOOR][NROOM];
 
+///////////////////////////////////////////////////////////////////////////
+//  FUNCTION PROTOTYPES
+///////////////////////////////////////////////////////////////////////////
+void EmptyHotel(Hotel hotel);
+void ShowReservations(Hotel hotel);
+int FindRoom(Hotel hotel, int *floor, int *room);
+Reservation Ask4Data(void);
+void MakeReservation(Hotel hotel);
+void CancelReservation(Hotel hotel, int floor, int room);
+int validate_date(const char *date);
+void clear_input_buffer(void);
 
+///////////////////////////////////////////////////////////////////////////
+//  MAIN FUNCTION
+///////////////////////////////////////////////////////////////////////////
+int main() {
+    Hotel hotel;
+    int opt, floor, room;
+    EmptyHotel(hotel);
+    
+    do {
+        printf("\nHotel Reservation System\n");
+        printf("1. Make a reservation\n");
+        printf("2. Show hotel status\n");
+        printf("3. Cancel reservation\n");
+        printf("4. Exit\n");
+        printf("Select option: ");
+        
+        if (scanf("%d", &opt) != 1) {
+            clear_input_buffer();
+            printf("Invalid input! Please enter a number.\n");
+            continue;
+        }
 
+        switch (opt) {
+            case 1:
+                MakeReservation(hotel);
+                break;
+            case 2:
+                ShowReservations(hotel);
+                break;
+            case 3:
+                printf("Enter floor (1-%d): ", NFLOOR);
+                if (scanf("%d", &floor) != 1 || floor < 1 || floor > NFLOOR) {
+                    printf("Invalid floor!\n");
+                    clear_input_buffer();
+                    break;
+                }
+                printf("Enter room (1-%d): ", NROOM);
+                if (scanf("%d", &room) != 1 || room < 1 || room > NROOM) {
+                    printf("Invalid room!\n");
+                    clear_input_buffer();
+                    break;
+                }
+                CancelReservation(hotel, floor-1, room-1);
+                break;
+            case 4:
+                printf("Goodbye!\n");
+                break;
+            default:
+                printf("Invalid option! Try again.\n");
+        }
+    } while (opt != 4);
 
-
-/////////////////////////////////////////////////////////////////////////////
-//
-//  Function:  EmptyHotel
-//  Parameters:  Matrix representing the hotel
-//  Returns: --
-//  Task: Assigns the value AVAILABLE to the field DNI for all the rooms to
-//        indicate that the hotel is empty
-//
-/////////////////////////////////////////////////////////////////////////////
-void EmptyHotel (Hotel hotel)
-{
-    int f,r;
-    for(f=0; f<NFLOOR; f++)
-        for (r=0; r<NROOM; r++)
-            hotel[f][r].DNI=AVAILABLE;
+    return 0;
 }
 
-/////////////////////////////////////////////////////////////////////////////
-//
-//  Function:  ShowReservations
-//  Parameters:  Matrix representing the hotel
-//  Returns: --
-//  Task: Shows on screen the matrix that represents the hotel
-//                   Prints an F (free) if the room is available.
-//                   Prints a R (reserved) if the room is reserved.
-//
-/////////////////////////////////////////////////////////////////////////////
-void ShowReservations (Hotel hotel) {
-    int f,r;
-    for(f=0; f<NFLOOR; f++) {
-        for (r=0; r<NROOM; r++) {
-            if(hotel[f][r].DNI==-1)
-                printf("F");
-            else {
-                printf("R");
-            }
+///////////////////////////////////////////////////////////////////////////
+//  FUNCTION IMPLEMENTATIONS
+///////////////////////////////////////////////////////////////////////////
+
+void EmptyHotel(Hotel hotel) {
+    for (int f = 0; f < NFLOOR; f++)
+        for (int r = 0; r < NROOM; r++)
+            hotel[f][r].DNI = AVAILABLE;
+}
+
+void ShowReservations(Hotel hotel) {
+    printf("\nHotel Status:\n");
+    for (int f = 0; f < NFLOOR; f++) {
+        printf("Floor %2d: ", f+1);
+        for (int r = 0; r < NROOM; r++) {
+            printf("%c ", hotel[f][r].DNI == AVAILABLE ? 'F' : 'R');
         }
         printf("\n");
-
     }
 }
 
-    /////////////////////////////////////////////////////////////////////////////
-    //
-    //  Function:  FindRoom
-    //  Parameters:  Matrix representing the hotel
-    //               Parameter passed by reference to return the floor in which the available room is found
-    //               Parameter passed by reference to return the room number
-    //  Returns:  The floor number and the room number of the room selected (by reference)
-    //  Task: Finds an available room to be booked.
-    //               Starts the search on the TOP floor and continues down
-    //               If no available room is found, returns -1 as the floor number
-    //
-    /////////////////////////////////////////////////////////////////////////////
-    void FindRoom(Hotel hotel, int *floor, int *room) {
-        int f,r;
-        for(f=NFLOOR-1; f>=0; f--){
-            for (r=NROOM-1; r>=0; r--) {
-                if(hotel[f][r].DNI==-1) {
-                    *floor=f;
-                    *room=r;
-                    return;
-                }
+int FindRoom(Hotel hotel, int *floor, int *room) {
+    for (int f = NFLOOR-1; f >= 0; f--) {
+        for (int r = NROOM-1; r >= 0; r--) {
+            if (hotel[f][r].DNI == AVAILABLE) {
+                *floor = f;
+                *room = r;
+                return 1;
             }
         }
-    *floor=-1;
+    }
+    return 0;
+}
+
+Reservation Ask4Data(void) {
+    Reservation res;
+    clear_input_buffer();
+
+    printf("\nEnter DNI (numbers only): ");
+    while (scanf("%d", &res.DNI) != 1) {
+        clear_input_buffer();
+        printf("Invalid DNI! Try again: ");
     }
 
+    clear_input_buffer();
+    printf("Enter name: ");
+    fgets(res.name, 50, stdin);
+    res.name[strcspn(res.name, "\n")] = '\0';
 
+    printf("Enter surname: ");
+    fgets(res.surname, 50, stdin);
+    res.surname[strcspn(res.surname, "\n")] = '\0';
 
-    /////////////////////////////////////////////////////////////////////////////
-    //
-    //  Function:  Ask4Data
-    //  Parameters:  --
-    //  Returns: Variable of type Reservation storing the data of the client
-    //  Task: Asks the user for the reservation data (using printf and scanf)
-    //
-    /////////////////////////////////////////////////////////////////////////////
-Reservation Ask4Data() {
-    Reservation res;  // Declare a Reservation variable to store the client data
+    do {
+        clear_input_buffer();
+        printf("Enter phone (9 digits): ");
+        fgets(res.N_telephone, 10, stdin);
+        res.N_telephone[strcspn(res.N_telephone, "\n")] = '\0';
+    } while (strlen(res.N_telephone) != 9 || !isdigit(res.N_telephone[0]));
 
-    printf("Please enter your DNI (only numbers):\n");
-    scanf("%d", &res.DNI);
+    do {
+        clear_input_buffer();
+        printf("Enter credit card (16 digits): ");
+        fgets(res.credit, 17, stdin);
+        res.credit[strcspn(res.credit, "\n")] = '\0';
+    } while (strlen(res.credit) != 16 || !isdigit(res.credit[0]));
 
-    printf("Please enter your name:\n");
-    scanf("%s", res.name);
+    do {
+        clear_input_buffer();
+        printf("Enter arrival date (DD/MM/YYYY): ");
+        fgets(res.arrival_date, 11, stdin);
+        res.arrival_date[strcspn(res.arrival_date, "\n")] = '\0';
+    } while (!validate_date(res.arrival_date));
 
-    printf("Please enter your surname:\n");
-    scanf("%s", res.surname);
-
-    printf("Please enter your telephone number:\n");
-
-        scanf("%d", &res.N_telephone);
-
-    printf("Please enter your credit/debit card number for payment:\n");
-
-        scanf("%d", &res.credit);
-
-
-    printf("Please enter your arrival date (dd/mm/yy):\n");
-    scanf("%s", res.arrival_date);
-
-    printf("Please enter your departure date (dd/mm/yy):\n");
-    scanf("%s", res.departure_date);
+    do {
+        clear_input_buffer();
+        printf("Enter departure date (DD/MM/YYYY): ");
+        fgets(res.departure_date, 11, stdin);
+        res.departure_date[strcspn(res.departure_date, "\n")] = '\0';
+    } while (!validate_date(res.departure_date));
 
     return res;
 }
 
-
-    /////////////////////////////////////////////////////////////////////////////
-    //
-    //  Function:  MakeReservation
-    //  Parameters:  Matrix representing the hotel
-    //  Returns: --
-    //  Task: Makes the reservation of the room.
-    //        Steps: Finds a free room (first) and then asks for the reservation data,
-    //				 which is later stored at the corresponding position in the matrix.
-    //
-    /////////////////////////////////////////////////////////////////////////////
-    void MakeReservation(Hotel hotel) {
-
+void MakeReservation(Hotel hotel) {
     int floor, room;
-
-    FindRoom(hotel, &floor, &room); // calling the function to find a free room
-
-    if (floor != -1) { // making sure that there is a free room
-
-        Reservation res = Ask4Data(); // getting reservation data and giving it in reservation res;
-
-        hotel[floor][room] = res; // Store data in the hotel matrix
-
+    if (FindRoom(hotel, &floor, &room)) {
+        hotel[floor][room] = Ask4Data();
+        printf("\nReservation successful! Floor: %d, Room: %d\n", 
+              floor+1, room+1);
     } else {
-        printf("No rooms available!\n");
-
+        printf("\nNo available rooms!\n");
     }
+}
 
+void CancelReservation(Hotel hotel, int floor, int room) {
+    if (floor < 0 || floor >= NFLOOR || room < 0 || room >= NROOM) {
+        printf("Invalid room location!\n");
+        return;
     }
-
-
-
-
-    /////////////////////////////////////////////////////////////////////////////
-    //
-    //  Function:  CancelReservation
-    //  Parameters:  Matrix representing the hotel
-    //               Identifier of the reservation (floor number and room number)
-    //  Returns: --
-    //  Task: Sets the room as available by setting the DNI field to AVAILABLE,
-    //        Visualises the reservation data before deleting it (name, surname
-    //		  and date of arrival).
-    //
-    /////////////////////////////////////////////////////////////////////////////
-    void CancelReservation(Hotel hotel, int floor, int room)
-    {
 
     if (hotel[floor][room].DNI != AVAILABLE) {
-
-        printf("Name: %s %s\n", hotel[floor][room].name, hotel[floor][room].surname);
-        printf("Arrival Date: %s\n", hotel[floor][room].arrival_date);
-
+        printf("\nCanceling reservation for:\n");
+        printf("Name: %s %s\n", hotel[floor][room].name, 
+              hotel[floor][room].surname);
+        printf("Arrival: %s\n", hotel[floor][room].arrival_date);
         hotel[floor][room].DNI = AVAILABLE;
+        printf("Reservation canceled successfully.\n");
     } else {
-        printf("No reservation found in this room.\n");
+        printf("Room is already available.\n");
     }
+}
 
-    }
+int validate_date(const char *date) {
+    if (strlen(date) != 10) return 0;
+    if (date[2] != '/' || date[5] != '/') return 0;
+    return 1;
+}
 
-    /////////////////////////////////////////////////////////////////////////////
-    //  DO NOT MODIFY
-    /////////////////////////////////////////////////////////////////////////////
-    //
-    //  Function:  Main
-    //  Parameters:  --
-    //  Returns: --
-    //  Task: Main program
-    //
-    /////////////////////////////////////////////////////////////////////////////
-    void main()
-    {
-        Hotel hotel;
-        int opt,floor,room;
-        EmptyHotel(hotel);
-        do
-        {
-            printf("1.- Make a reservation\n");
-            printf("2.- Show the hotel status\n");
-            printf("3.- Cancel a reservation\n");
-            printf("4.- Exit\n");
-            printf("Select an option:  ");
-            scanf("%d",&opt);
-
-            switch (opt)
-            {
-                case 1:
-                    MakeReservation(hotel);
-                break;
-                case 2:
-                    ShowReservations(hotel);
-                break;
-                case 3:
-                    printf("Indicate the reservation to cancel\n");
-                printf(" Floor (from 1 to %d):",NFLOOR);
-                scanf("%d", &floor);
-                floor--;
-                printf(" Room (from 1 to %d:",NROOM);
-                scanf("%d", &room);
-                room--;
-                CancelReservation(hotel, floor,room);
-                break;
-                case 4:
-                    printf("SEE YOU!\n");
-                break;
-            }
-        }
-        while (opt!=4);
-    }
+void clear_input_buffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
